@@ -22,19 +22,13 @@ def load_and_split_documents():
     """Yerel bir dosyadan (CSV) veri setini yükler ve parçalara ayırır."""
     file_path = "datav2.csv"
     # try:
-
-    # df = pd.read_csv(file_path)
-
-    # print(f"'{file_path}' dosyası başarıyla yüklendi.")
-
+        # df = pd.read_csv(file_path)
+        # print(f"'{file_path}' dosyası başarıyla yüklendi.")
     # except FileNotFoundError:
-
-    # print(f"Hata: '{file_path}' dosyası bulunamadı. Lütfen aynı dizinde olduğundan emin olun.")
-
-    # return []
+        # print(f"Hata: '{file_path}' dosyası bulunamadı. Lütfen aynı dizinde olduğundan emin olun.")
+        # return []
     try:
-        # df = pd.read_csv(file_path,nrows=10)
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path,nrows=10)
         print(f"'{file_path}' dosyasının ilk 10 satırı başarıyla yüklendi.")
 
         print("\n--- Yüklenen Tarif Başlıkları ---\n")
