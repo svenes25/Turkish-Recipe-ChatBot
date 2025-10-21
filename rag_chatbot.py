@@ -6,7 +6,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 from functools import partial
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings 
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -27,7 +27,6 @@ def load_and_split_documents():
     """Yerel bir dosyadan (CSV) veri setini yükler ve parçalara ayırır."""
     file_path = "datav2.csv"
     try:
-        # Sadece ilk 10 satırı yükleme mantığı korunmuştur.
         df = pd.read_csv(file_path, nrows=10)
         print(f"'{file_path}' dosyasının ilk 10 satırı başarıyla yüklendi.")
 
@@ -63,18 +62,21 @@ def create_vector_store(splits):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Embedding işlemi için kullanılan cihaz: {device.upper()}")
 
-    embeddings = HuggingFaceEmbeddings(
+    # DİKKAT: LangChainDeprecationWarning'i gidermek için HuggingFaceEmbeddings buraya taşındı.
+    embeddings = HuggingFaceEmbeddings( 
         model_name="intfloat/multilingual-e5-large",
-        model_kwargs={'device': device} # Modeli belirtilen cihaza taşı
+        model_kwargs={'device': device} 
     )
 
     vector_store = Chroma.from_documents(documents=splits, embedding=embeddings)
 
     return vector_store
 
+# --- AGENT YAKLAŞIMI İÇİN TOOL TANIMI ---
+# Bu, Tool olarak kullanılacak ham fonksiyondur.
 @tool
 def retrieve_context(query: str, vector_store: Chroma):
-    """Yemek tarifleriyle ilgili bir sorguyu yanıtlamaya yardımcı olacak bilgileri getir."""
+    """Yemek tarifleriyle ilgili bir sorguyu yanıtlamaya yardımcı olacak bilgileri getirir."""
     retrieved_docs = vector_store.similarity_search(query, k=3)
     
     serialized = "\n\n".join(
@@ -82,14 +84,24 @@ def retrieve_context(query: str, vector_store: Chroma):
         for doc in retrieved_docs
     )
     return serialized
-    
+
+
 def create_recipe_agent(vector_store):
     """
-    Sadece Runnable Agent nesnesini döndürür. AgentExecutor kullanılmaz.
+    Sadece Runnable Agent nesnesini döndürür.
     """
     
-    retrieval_tool_partial = partial(retrieve_context, vector_store=vector_store)
-    retrieval_tool = tool(retrieval_tool_partial, name="retrieve_recipe_info", description="Kullanıcının sorgusuyla ilgili yemek tarifleri ve malzemeleri getirir. Yemek adlarını, malzemeleri veya nasıl yapılacağını öğrenmek için kullanın.")
+    # Hata Düzeltmesi: partial ile bağlanan fonksiyonu, bir lambda ile tekrar sarmalayarak
+    # 'callable' hatasının önüne geçiyoruz. Lambda, LangChain Tool decorator'ı için daha güvenilirdir.
+    retrieval_func = partial(retrieve_context, vector_store=vector_store)
+    
+    # Lambda ile sarmalama ve Tool olarak sunma
+    # Lambda, dinamik olarak oluşturulmuş bir fonksiyon olduğu için 'callable' hatası vermeyecektir.
+    retrieval_tool = tool(
+        lambda query: retrieval_func(query), # Lambda, query'yi alır ve partial fonksiyonu çağırır
+        name="retrieve_recipe_info", 
+        description="Kullanıcının sorgusuyla ilgili yemek tarifleri ve malzemeleri getirir. Yemek adlarını, malzemeleri veya nasıl yapılacağını öğrenmek için kullanın."
+    )
 
     tools = [retrieval_tool]
     
@@ -99,7 +111,10 @@ def create_recipe_agent(vector_store):
         "bilgilere dayanarak, detaylı ve kibar bir şekilde cevap ver. Eğer araç bilgi döndürmezse, "
         "\"Üzgünüm, veri setimde bu tarife dair bir bilgi bulunmamaktadır.\" diye cevap ver."
     )
+    
+    # Agent'ı bir Runnable olarak döndürür
     agent = create_agent(LLM, tools, prompt=system_prompt)
+    
     return agent
 
 def stream_agent_answer(agent, question):
