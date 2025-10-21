@@ -4,7 +4,8 @@ import os
 from langchain_core.documents import Document 
 from langchain_text_splitters import RecursiveCharacterTextSplitter 
 from langchain_core.tools import tool
-from langchain.agents import create_agent, AgentExecutor 
+from langchain.agents import create_agent
+from langchain.agents.agent import AgentExecutor 
 from functools import partial
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
