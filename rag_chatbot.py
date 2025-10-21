@@ -83,74 +83,71 @@ def retrieve_context(query: str, vector_store: Chroma):
         for doc in retrieved_docs
     )
     return serialized
-
-
+    
 def create_recipe_agent(vector_store):
     """
-    Vektör deposuna erişmek için retrieve_context aracını kullanan bir Agent oluşturur.
-    Önceki RAG zincirlerinin (howto, material, title) yerini alır.
+    Sadece Runnable Agent nesnesini döndürür. AgentExecutor kullanılmaz.
     """
+    
     retrieval_tool_partial = partial(retrieve_context, vector_store=vector_store)
     retrieval_tool = tool(retrieval_tool_partial, name="retrieve_recipe_info", description="Kullanıcının sorgusuyla ilgili yemek tarifleri ve malzemeleri getirir. Yemek adlarını, malzemeleri veya nasıl yapılacağını öğrenmek için kullanın.")
 
     tools = [retrieval_tool]
-
+    
     system_prompt = (
         "SEN PROFESYONEL BİR ŞEFSİN. Kullanıcı sorularını yanıtlamak için daima 'retrieve_recipe_info' "
         "adlı aracı kullanmalısın. Gerekirse aracı birden fazla kez çağır. Sadece aracın döndürdüğü "
         "bilgilere dayanarak, detaylı ve kibar bir şekilde cevap ver. Eğer araç bilgi döndürmezse, "
         "\"Üzgünüm, veri setimde bu tarife dair bir bilgi bulunmamaktadır.\" diye cevap ver."
     )
-    
     agent = create_agent(LLM, tools, prompt=system_prompt)
-    
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-    
-    return agent_executor
+    return agent
 
-
-def ask_agent(agent_executor, question):
-    """Oluşturulan AgentExecutor ile soru sorar."""
+def stream_agent_answer(agent, question):
+    """Oluşturulan Agent'ın akış (stream) çıktısını işler ve yazdırır."""
     print(f"\nSoru: {question}")
-    response = agent_executor.invoke({"input": question})
-    return response["output"]
+    stream_iterator = agent.stream(
+        {"input": question}, 
+        stream_mode="values"
+    )
 
+    print("-" * 50)
+    print("AGENT ÇALIŞMA ADIMLARI (STREAMING):")
+    print("-" * 50)
+
+    for event in stream_iterator:
+        if "messages" in event:
+            message = event["messages"][-1]
+            if message.tool_calls:
+                print(f"-> ARAÇ ÇAĞRISI: {message.tool_calls[0]['name']} (Sorgu: {message.tool_calls[0]['args']['query']})")
+            elif message.content:
+                if message.tool_call_id:
+                    print(f"-> GÖZLEM (Tool Output): {message.content[:100]}...")
+                else:
+                    # Bu nihai cevaptır
+                    print(f"\n--- SON CEVAP ---")
+                    print(message.content)
+                    print("-----------------\n")
 
 if __name__ == "__main__":
     splits = load_and_split_documents()
 
     if splits:
-        print("\n--- İlk 3 Döküman Parçası ---\n")
-        for i, split in enumerate(splits[:3]):
+        print("\n--- İlk 10 Döküman Parçası ---\n")
+        for i, split in enumerate(splits[:10]):
             print(f"Parça {i + 1}:")
             print(split.page_content)
             print("-" * 20)
     else:
-        print("\nUyarı: 'splits' listesi boş. Döküman yükleme veya bölme işleminde bir sorun olabilir.")
+        print("\nUYARI: 'splits' listesi boş. Lütfen 'datav2.csv' dosyasını kontrol edin.")
         exit()  # Programdan çık
 
     vector_store = create_vector_store(splits)
     if not vector_store:
         exit()
-
     recipe_agent = create_recipe_agent(vector_store)
-
-    question_1 = "İçli köfte nasıl yapılır? Tüm süreci anlat."
-    answer_1 = ask_agent(recipe_agent, question_1)
-    print(f"Cevap: {answer_1}")
-    print("=" * 50)
-
-    question_2 = "Mantı için hangi malzemeler gerekir?"
-    answer_2 = ask_agent(recipe_agent, question_2)
-    print(f"Cevap: {answer_2}")
-    print("=" * 50)
-
-    question_3 = "Elimde kıyma, kimyon ve karabiber var hangi yemekler yapılır?"
-    answer_3 = ask_agent(recipe_agent, question_3)
-    print(f"Cevap: {answer_3}")
-    print("=" * 50)
-    
-    question_4 = "Sodalı köftenin yanında iyi gidecek bir yemek önerir misin?"
-    answer_4 = ask_agent(recipe_agent, question_4)
-    print(f"Cevap: {answer_4}")
-    print("=" * 50)
+    stream_agent_answer(recipe_agent, "İçli köfte nasıl yapılır? Tüm süreci anlat.")
+    stream_agent_answer(recipe_agent, "Mantı için hangi malzemeler gerekir?")
+    stream_agent_answer(recipe_agent, "Elimde kıyma, kimyon ve karabiber var hangi yemekler yapılır?")
+    stream_agent_answer(recipe_agent, "Sodalı köftenin yanında iyi gidecek bir yemek önerir misin?")
+    print("Program sonlandı.")
