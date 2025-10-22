@@ -88,7 +88,7 @@ Turkish-Recipe-ChatBot/
 31'inci satırı açın
 ```python
    #df = pd.read_csv("datav2.csv")
-   df = pd.read_csv("datav2.csv", nrows=328)
+   df = pd.read_csv("datav2.csv", nrows=30)
 ```
 Tüm veriseti için 
 30'uncu satırı açın
@@ -97,6 +97,6 @@ Tüm veriseti için
 ## Huggingface.co Linki
 https://huggingface.co/spaces/svenes/turkish-recipe-chatbot
  
-- DİKKAT RUN TIME ERROR NEDENİYLE 200 TARİF KULLANILMIŞTIR.
-- BAZEN BOŞ RESPONSE DÖNEBİLİR LÜTFEN YENİLEYİP DENEYİN.
+- DİKKAT RUN TIME ERROR NEDENİYLE 30 TARİF KULLANILMIŞTIR.
+- BOŞ RESPONSE DÖNMEMESİ İÇİN LÜTFEN YUKARIDAKİ SORU EKLERİNE GÖRE SORUN.
 
