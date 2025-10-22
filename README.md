@@ -1,4 +1,4 @@
-# Türkçe Tarif Defteri ChatBotu
+<img width="1024" height="321" alt="image" src="https://github.com/user-attachments/assets/d82c52de-34a1-4f9b-83e8-43af03be2ba7" /># Türkçe Tarif Defteri ChatBotu
 
 Retrieval-Augmented Generation (RAG) ile geliştirilmiş 5252 adet yemek tarifini 14235 vektöre ayırarak çalışan bir chatbot.
 - Bugun hangi yemeği yapmalıyım?
@@ -98,5 +98,5 @@ Tüm veriseti için
 https://huggingface.co/spaces/svenes/turkish-recipe-chatbot
  
 - DİKKAT RUN TIME ERROR NEDENİYLE 30 TARİF KULLANILMIŞTIR.
-- BOŞ RESPONSE DÖNMEMESİ İÇİN LÜTFEN YUKARIDAKİ SORU EKLERİNE GÖRE SORUN.
-
+- BAZEN CEVAP NEDENİNİ ANLAMADIĞIM ŞEKİLDE BOŞ DÖNEBİLİYOR.
+<img width="975" height="758" alt="image" src="https://github.com/user-attachments/assets/37eab62f-688e-42e4-b09c-abdd9da55299" />
