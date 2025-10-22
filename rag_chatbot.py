@@ -1,167 +1,206 @@
-import pandas as pd
-from dotenv import load_dotenv
 import os
-from langchain_core.documents import Document 
-from langchain_text_splitters import RecursiveCharacterTextSplitter 
-from langchain_core.tools import tool
-from langchain.agents import create_agent
-from functools import partial
-from langchain_huggingface import HuggingFaceEmbeddings 
-from langchain_community.vectorstores import Chroma
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+import sys
+import traceback
+from dotenv import load_dotenv
+import pandas as pd
 import torch
 
-print(torch.__version__)
-print(torch.version.cuda)
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+from langchain_core.tools import tool
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+from langchain.agents import create_agent
+
+# ==================== TEMEL BİLGİLER ====================
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY bulunamadı. Lütfen .env dosyasını kontrol edin.")
 
-LLM = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+LLM = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.7, google_api_key=GOOGLE_API_KEY)
 
+
+# ==================== 1. VERİ YÜKLEME & PARÇALAMA ====================
 
 def load_and_split_documents():
-    """Yerel bir dosyadan (CSV) veri setini yükler ve parçalara ayırır."""
-    file_path = "datav2.csv"
     try:
-        df = pd.read_csv(file_path, nrows=10)
-        print(f"'{file_path}' dosyasının ilk 10 satırı başarıyla yüklendi.")
-
-        print("\n--- Yüklenen Tarif Başlıkları ---\n")
-        print(df['Title'])
+        # df = pd.read_csv("datav2.csv")
+        df = pd.read_csv("datav2.csv", nrows=10)
+        print("10 satırı başarıyla yüklendi.")
+        print("=== YÜKLENEN SATIRLAR (ÖN İZLEME) ===")
+        print(df.to_string(index=False))  # tüm sütunları düzgün şekilde göster
+        print("=====================================\n")
     except FileNotFoundError:
-        print(f"Hata: '{file_path}' dosyası bulunamadı. Lütfen aynı dizinde olduğundan emin olun.")
+        print("Hata: 'datav2.csv' dosyası bulunamadı.")
+        return []
+    except Exception as e:
+        print(f"CSV yükleme hatası: {e}")
+        traceback.print_exc()
         return []
 
     docs = []
-    for index, row in df.iterrows():
-        try:
-            content = f"Yemek Adı: {row['Title']}\n\nMalzemeler: {row['Materials']}\n\nTarif: {row['How-to-do']}"
-            metadata = {"title": row['Title']}
-            docs.append(Document(page_content=content, metadata=metadata))
-        except KeyError as e:
-            print(f"Hata: '{e.args[0]}' sütunu veri setinde bulunamadı.")
-            return []
+    for _, row in df.iterrows():
+        title = row.get("Title", "Bilinmiyor")
+        content = (
+            f"Yemek Adı: {title}\n\n"
+            f"Malzemeler: {row.get('Materials', 'Yok')}\n\n"
+            f"Tarif: {row.get('How-to-do', 'Yok')}"
+        )
+        docs.append(Document(page_content=content, metadata={"title": title}))
 
-    print(f"{len(docs)} adet tarif dökümanı yüklendi.")
+    print(f"{len(docs)} adet tarif dökümanı oluşturuldu.")
 
+    # Metni parçalara ayır
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    splits = text_splitter.split_documents(docs)
+    try:
+        splits = text_splitter.split_documents(docs)
+    except Exception as e:
+        print("Text splitter sırasında hata:", e)
+        traceback.print_exc()
+        return []
+
     print(f"Toplam {len(splits)} adet metin parçasına bölündü.")
     return splits
 
 
-def create_vector_store(splits):
+# ==================== 2. VEKTÖR DEPOSU OLUŞTURMA ====================
+
+def create_vector_store(splits, persist: bool = False):
     if not splits:
         print("Uyarı: 'splits' listesi boş. Vektör veritabanı oluşturulamadı.")
         return None
-    print(torch.cuda.is_available())
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Embedding işlemi için kullanılan cihaz: {device.upper()}")
 
-    # DİKKAT: LangChainDeprecationWarning'i gidermek için HuggingFaceEmbeddings buraya taşındı.
-    embeddings = HuggingFaceEmbeddings( 
-        model_name="intfloat/multilingual-e5-large",
-        model_kwargs={'device': device} 
-    )
-
-    vector_store = Chroma.from_documents(documents=splits, embedding=embeddings)
-
-    return vector_store
-
-# --- AGENT YAKLAŞIMI İÇİN TOOL TANIMI ---
-# Bu, Tool olarak kullanılacak ham fonksiyondur.
-@tool
-def retrieve_context(query: str, vector_store: Chroma):
-    """Yemek tarifleriyle ilgili bir sorguyu yanıtlamaya yardımcı olacak bilgileri getirir."""
-    retrieved_docs = vector_store.similarity_search(query, k=3)
-    
-    serialized = "\n\n".join(
-        (f"YEMEK ADI: {doc.metadata.get('title', 'N/A')}\nDETAYLAR: {doc.page_content}")
-        for doc in retrieved_docs
-    )
-    return serialized
+    try:
+        print(f"{len(splits)} dökümanla vektör veritabanı oluşturuluyor...")
+        embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large", model_kwargs={"device": "cpu"})
+        try:
+            vector_store = Chroma.from_documents(documents=splits, embedding=embeddings,
+                                                 persist_directory="./chroma_store" if persist else None)
+        except TypeError:
+            vector_store = Chroma.from_documents(documents=splits, embedding=embeddings)
+        print("Chroma Vektör Deposu başarıyla oluşturuldu!")
+        return vector_store
+    except Exception as e:
+        print(f"Vektör veritabanı oluşturulamadı: {e}")
+        traceback.print_exc()
+        return None
 
 
-def create_recipe_agent(vector_store):
-    """
-    Sadece Runnable Agent nesnesini döndürür.
-    """
-    
-    # Hata Düzeltmesi: partial ile bağlanan fonksiyonu, bir lambda ile tekrar sarmalayarak
-    # 'callable' hatasının önüne geçiyoruz. Lambda, LangChain Tool decorator'ı için daha güvenilirdir.
-    retrieval_func = partial(retrieve_context, vector_store=vector_store)
-    
-    # Lambda ile sarmalama ve Tool olarak sunma
-    # Lambda, dinamik olarak oluşturulmuş bir fonksiyon olduğu için 'callable' hatası vermeyecektir.
-    retrieval_tool = tool(
-        lambda query: retrieval_func(query), # Lambda, query'yi alır ve partial fonksiyonu çağırır
-        name="retrieve_recipe_info", 
-        description="Kullanıcının sorgusuyla ilgili yemek tarifleri ve malzemeleri getirir. Yemek adlarını, malzemeleri veya nasıl yapılacağını öğrenmek için kullanın."
-    )
+# ==================== 3. RAG ZİNCİRİ (retrieve tool + agent) ====================
 
-    tools = [retrieval_tool]
-    
+def make_retrieve_context_tool(vector_store):
+    from langchain_core.tools import tool
+    import traceback
+
+    @tool(description="Kullanıcının sorusuna uygun tarifleri ve malzemeleri getirir.")
+    def retrieve_context(question: str) -> str:
+        if vector_store is None:
+            return "Vektör veritabanı bulunamadı!"
+        try:
+            docs = vector_store.similarity_search(question, k=5)
+        except Exception as e:
+            print("Similarity search hatası:", e)
+            traceback.print_exc()
+            return "Veritabanı araması sırasında hata oluştu."
+
+        if not docs:
+            return "Veri bulunamadı."
+
+        composed = ""
+        for doc in docs:
+            title = doc.metadata.get("title", "Bilinmiyor")
+            composed += (
+                f"\n🍽️ Yemek Adı: {title}\n"
+                f"🧂 Malzemeler: {doc.page_content.split('Malzemeler: ')[-1].split('Tarif:')[0].strip()}\n"
+                f"👨‍🍳 Tarif: {doc.page_content.split('Tarif: ')[-1].strip()}\n"
+                "──────────────────────────────\n"
+            )
+        return composed
+
+    return retrieve_context
+
+
+def create_rag_chain(vector_store):
+    from rag_chatbot import create_agent, LLM
+    import traceback
+
     system_prompt = (
-        "SEN PROFESYONEL BİR ŞEFSİN. Kullanıcı sorularını yanıtlamak için daima 'retrieve_recipe_info' "
-        "adlı aracı kullanmalısın. Gerekirse aracı birden fazla kez çağır. Sadece aracın döndürdüğü "
-        "bilgilere dayanarak, detaylı ve kibar bir şekilde cevap ver. Eğer araç bilgi döndürmezse, "
-        "\"Üzgünüm, veri setimde bu tarife dair bir bilgi bulunmamaktadır.\" diye cevap ver."
+        "Sen PROFESYONEL BİR ŞEFSİN ve bir yemek tarifleri uzmanısın. "
+        "Kullanıcı sorularını yanıtlamak için aşağıdaki 'bağlam' kısmını kullanmalısın. "
+        "Kapsamlı, adım adım ve samimi cevaplar ver. "
+        "Eğer bağlamda soruyla ilgili bilgi yoksa, "
+        "\"Üzgünüm, veri setimde bu tarife dair bir bilgi bulunmamaktadır.\" diye cevap ver.\n\n"
+        "Ayrıca sadece yemek tarifi değil, aşağıdaki türden sorulara da yanıt verebilmelisin:\n"
+        "DİL KURALLARI:\n"
+        "- Türkçe ek ve kök analizine dikkat et.\n"
+        "- Fiillerin çekimli halleri (örneğin 'yapmak', 'yapıyorum', 'yapayım', 'yapabilir miyim', 'yapılır mı') "
+        "aynı kökten ('yapmak') türediği için hepsi aynı anlam kategorisine ait olarak değerlendirilmelidir.\n"
+        "- Bu kural sadece fiiller için değil, isim-fiil ve sıfat-fiil türevleri için de geçerlidir.\n"
+        "- Kullanıcı sorusundaki fiil veya isimleri kök hâline indir ve anlamı bu köke göre eşleştir.\n"
+        "- Bugün hangi yemeği yapmalıyım?\n"
+        "- 'X' yemeği nasıl yapılır?\n"
+        "- 'X' yemeği için hangi malzemeler gereklidir?\n"
+        "- 'X' malzemeleri ile hangi yemeği yapabilirim?\n"
+        "- 'X' yemeğinin yanında ne iyi gider?\n\n"
+        "BAĞLAM:\n{context}"
     )
-    
-    # Agent'ı bir Runnable olarak döndürür
-    agent = create_agent(LLM, tools, prompt=system_prompt)
-    
-    return agent
+    retrieve_tool = make_retrieve_context_tool(vector_store)
 
-def stream_agent_answer(agent, question):
-    """Oluşturulan Agent'ın akış (stream) çıktısını işler ve yazdırır."""
-    print(f"\nSoru: {question}")
-    stream_iterator = agent.stream(
-        {"input": question}, 
-        stream_mode="values"
-    )
+    try:
+        rag_chain = create_agent(tools=[retrieve_tool], model=LLM, system_prompt=system_prompt)
+    except Exception as e:
+        print("RAG chain oluşturulurken hata:", e)
+        traceback.print_exc()
+        return None
 
-    print("-" * 50)
-    print("AGENT ÇALIŞMA ADIMLARI (STREAMING):")
-    print("-" * 50)
+    return rag_chain
 
-    for event in stream_iterator:
-        if "messages" in event:
-            message = event["messages"][-1]
-            if message.tool_calls:
-                print(f"-> ARAÇ ÇAĞRISI: {message.tool_calls[0]['name']} (Sorgu: {message.tool_calls[0]['args']['query']})")
-            elif message.content:
-                if message.tool_call_id:
-                    print(f"-> GÖZLEM (Tool Output): {message.content[:100]}...")
-                else:
-                    # Bu nihai cevaptır
-                    print(f"\n--- SON CEVAP ---")
-                    print(message.content)
-                    print("-----------------\n")
 
-if __name__ == "__main__":
-    splits = load_and_split_documents()
+def run_rag_simple(rag_chain, question: str, verbose: bool = False) -> str:
+    """RAG zincirinden gelen cevabı yakalayıp düzgün biçimde döndürür."""
+    full_response = ""
+    inputs = {"messages": [{"role": "user", "content": question}]}
 
-    if splits:
-        print("\n--- İlk 10 Döküman Parçası ---\n")
-        for i, split in enumerate(splits[:10]):
-            print(f"Parça {i + 1}:")
-            print(split.page_content)
-            print("-" * 20)
-    else:
-        print("\nUYARI: 'splits' listesi boş. Lütfen 'datav2.csv' dosyasını kontrol edin.")
-        exit()  # Programdan çık
+    try:
+        for event in rag_chain.stream(inputs, stream_mode="updates"):
+            print(event)
+            text_part = ""
+            if isinstance(event, str):
+                text_part = event
+            elif isinstance(event, dict):
+                if "text" in event:
+                    text_part = event["text"]
+                elif "output_text" in event:
+                    text_part = event["output_text"]
+                elif "output" in event and isinstance(event["output"], dict):
+                    content = event["output"].get("content")
+                    if isinstance(content, str):
+                        text_part = content
+                    elif isinstance(content, list):
+                        text_part = "".join(
+                            c.get("text", "") for c in content if isinstance(c, dict)
+                        )
+                elif "model" in event and "messages" in event["model"]:
+                    msg = event["model"]["messages"][0]
+                    if hasattr(msg, "content") and isinstance(msg.content, list):
+                        text_part = "".join(
+                            c["text"] for c in msg.content if isinstance(c, dict) and "text" in c
+                        )
+            if text_part:
+                full_response += text_part
+                if verbose:
+                    print(text_part, end="", flush=True)
 
-    vector_store = create_vector_store(splits)
-    if not vector_store:
-        exit()
-    recipe_agent = create_recipe_agent(vector_store)
-    stream_agent_answer(recipe_agent, "İçli köfte nasıl yapılır? Tüm süreci anlat.")
-    stream_agent_answer(recipe_agent, "Mantı için hangi malzemeler gerekir?")
-    stream_agent_answer(recipe_agent, "Elimde kıyma, kimyon ve karabiber var hangi yemekler yapılır?")
-    stream_agent_answer(recipe_agent, "Sodalı köftenin yanında iyi gidecek bir yemek önerir misin?")
-    print("Program sonlandı.")
+        print("\n" + "-" * 60)
+        print("Cevap tamamlandı.")
+        print("-" * 60)
+        return full_response.strip()
+
+    except Exception as e:
+        print(f"run_rag_simple hatası: {e}")
+        traceback.print_exc()
+        return ""

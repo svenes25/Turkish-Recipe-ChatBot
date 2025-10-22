@@ -2,11 +2,11 @@
 
 Retrieval-Augmented Generation (RAG) ile geliştirilmiş 5252 adet yemek tarifini 14235 vektöre ayırarak çalışan bir chatbot.
 Bugun hangi yemeği yapmalıyım?
-"X" yemeği nasıl yapılır?
-"X" yemeği için hangi malzemeler gereklidir?
-"X" malzemeleri ile hangi yemeği yapabilirim?
-"X" yemeğinin yanında ne iyi gider? (Eğer beklentiniz bir ana yemekse ihtiyacınızı karşılamayabilir! Servis için öneri verir.)
-
+- "X" yemeği nasıl yapılır?
+- "X" yemeği için hangi malzemeler gereklidir?
+- "X" malzemeleri ile hangi yemeği yapabilirim?
+- "X" yemeğinin yanında ne iyi gider? (Eğer beklentiniz bir ana yemekse ihtiyacınızı karşılamayabilir! Servis için öneri verir.)
+- "X" yemeğinin yanında hangi yemeği yapmalıyım?
 
 ### Özellikler
 - Verisetindeki verileri vektörel veri setine dönüştürür.
@@ -22,17 +22,22 @@ Bugun hangi yemeği yapmalıyım?
 - LLM: Google Gemini (`gemini-2.0-flash`)
 - Embeddings: Google `intfloat/multilingual-e5-large`
 - Data: Markdown Q&A (`data2.csv`)
+- Chroma
 
 ## Gereksinimler
 - streamlit
-- langchain
-- langchain-community
-- langchain-google-genai
-- chromadb
 - pandas
 - python-dotenv
-- sentence-transformers
+- langchain
+- langchain-core
+- langchain-community
+- langchain-text-splitters
+- langchain-google-genai
+- langchain_huggingface
+- langchain-chroma
+- chromadb
 - torch
+- sentence-transformers
 - .env dosyasına GOOGLE_API_KEY oluşturun.
 
 ## Kurulum
@@ -81,28 +86,17 @@ Turkish-Recipe-ChatBot/
 ```
 
 ## Hızlı Çalıştırma İçin
-24 - 29 satırı yorum satırına alın
-30 - 38 i açın
+30'uncu satırı yorum satırına alın
+31'inci satırı açın
 ```python
-    # try:
-        # df = pd.read_csv(file_path)
-        # print(f"'{file_path}' dosyası başarıyla yüklendi.")
-    # except FileNotFoundError:
-        # print(f"Hata: '{file_path}' dosyası bulunamadı. Lütfen aynı dizinde olduğundan emin olun.")
-        # return []
-    try:
-        df = pd.read_csv(file_path,nrows=10)
-        print(f"'{file_path}' dosyasının ilk 10 satırı başarıyla yüklendi.")
-
-        print("\n--- Yüklenen Tarif Başlıkları ---\n")
-        print(df['Title'])
-    except FileNotFoundError:
-        print(f"Hata: '{file_path}' dosyası bulunamadı. Lütfen aynı dizinde olduğundan emin olun.")
-        return []
+   #df = pd.read_csv("datav2.csv")
+   df = pd.read_csv("datav2.csv", nrows=328)
 ```
 Tüm veriseti için 
-24 - 29 u açın
-30 - 38 i yorum satırına alın
+30'uncu satırı açın
+31'inci satırı yorum satırına alın
 
 ## Huggingface.co Linki
-https://huggingface.co/spaces/svenes/recipe-chatbot
+https://huggingface.co/spaces/svenes/turkish-recipe-chatbot
+ 
+- DİKKAT RUN TIME ERROR NEDENİYLE 328 TARİF KULLANILMIŞTIR.
