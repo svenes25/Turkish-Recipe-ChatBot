@@ -97,5 +97,6 @@ Tüm veriseti için
 ## Huggingface.co Linki
 https://huggingface.co/spaces/svenes/turkish-recipe-chatbot
  
-- DİKKAT RUN TIME ERROR NEDENİYLE 328 TARİF KULLANILMIŞTIR. BAZEN BOŞ RESPONSE DÖNEBİLİR LÜTFEN YENİLEYİP DENEYİN.
-- 
+- DİKKAT RUN TIME ERROR NEDENİYLE 200 TARİF KULLANILMIŞTIR.
+- BAZEN BOŞ RESPONSE DÖNEBİLİR LÜTFEN YENİLEYİP DENEYİN.
+
