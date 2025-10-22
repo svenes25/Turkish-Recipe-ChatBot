@@ -1,5 +1,3 @@
-<img width="1024" height="321" alt="image" src="https://github.com/user-attachments/assets/d82c52de-34a1-4f9b-83e8-43af03be2ba7" /># Türkçe Tarif Defteri ChatBotu
-
 Retrieval-Augmented Generation (RAG) ile geliştirilmiş 5252 adet yemek tarifini 14235 vektöre ayırarak çalışan bir chatbot.
 - Bugun hangi yemeği yapmalıyım?
 - "X" yemeği nasıl yapılır?
