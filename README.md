@@ -1,12 +1,10 @@
 # Türkçe Tarif Defteri ChatBotu
 
 Retrieval-Augmented Generation (RAG) ile geliştirilmiş 5252 adet yemek tarifini 14235 vektöre ayırarak çalışan bir chatbot.
-Bugun hangi yemeği yapmalıyım?
+- Bugun hangi yemeği yapmalıyım?
 - "X" yemeği nasıl yapılır?
 - "X" yemeği için hangi malzemeler gereklidir?
 - "X" malzemeleri ile hangi yemeği yapabilirim?
-- "X" yemeğinin yanında ne iyi gider? (Eğer beklentiniz bir ana yemekse ihtiyacınızı karşılamayabilir! Servis için öneri verir.)
-- "X" yemeğinin yanında hangi yemeği yapmalıyım?
 
 ### Özellikler
 - Verisetindeki verileri vektörel veri setine dönüştürür.
@@ -99,4 +97,5 @@ Tüm veriseti için
 ## Huggingface.co Linki
 https://huggingface.co/spaces/svenes/turkish-recipe-chatbot
  
-- DİKKAT RUN TIME ERROR NEDENİYLE 328 TARİF KULLANILMIŞTIR.
+- DİKKAT RUN TIME ERROR NEDENİYLE 328 TARİF KULLANILMIŞTIR. BAZEN BOŞ RESPONSE DÖNEBİLİR LÜTFEN YENİLEYİP DENEYİN.
+- 
